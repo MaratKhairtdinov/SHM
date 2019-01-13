@@ -16,9 +16,10 @@ public class SensorNode {
 	static int 		samplingRate;     	// [Hz = s/n]
 	static int 		lengthOfDataset; 	// [n]
 	static int 		numberOfPeaks;		// [n]
-	static double 	acceleration[];		// [x-acceleration, y-acceleration, z-acceleration][in g]		
+	static double 	acceleration[];		// [x-acceleration, y-acceleration, z-acceleration][in g]
+	static int property;
 	
-	public static String serverIP = "192.168.61.108";
+	public static String serverIP = "192.168.137.148";
 	
     public static void main(String[] args) throws IOException, I2CFactory.UnsupportedBusNumberException, InterruptedException, ClassNotFoundException {
     	/*
@@ -33,6 +34,7 @@ public class SensorNode {
         lengthOfDataset = in.readInt(); // the software runs until this point, waiting for data from the server
         samplingRate 	= in.readInt();
         numberOfPeaks	= in.readInt();
+        property 		= in.readInt();
         
         ADXL345 adxl345 = new ADXL345(I2CBus.BUS_1, ADXL345.ADXL345_ADDRESS_ALT_LOW);
         ADXL345 adxl345_1d = new ADXL345(I2CBus.BUS_1, ADXL345.ADXL345_ADDRESS_ALT_HIGH);
@@ -52,59 +54,178 @@ public class SensorNode {
         short[] raw_1d = new short[3];
         double[] x_accelerations_s1 = new double[lengthOfDataset];
         double[] x_accelerations_s2 = new double[lengthOfDataset];
+        double[] y_accelerations_s1 = new double[lengthOfDataset];
+        double[] y_accelerations_s2 = new double[lengthOfDataset];
+        double[] z_accelerations_s1 = new double[lengthOfDataset];
+        double[] z_accelerations_s2 = new double[lengthOfDataset];
+        
+        double[] x_velocities_s1 = new double[lengthOfDataset];
+        double[] x_velocities_s2 = new double[lengthOfDataset];
+        double[] y_velocities_s1 = new double[lengthOfDataset];
+        double[] y_velocities_s2 = new double[lengthOfDataset];
+        double[] z_velocities_s1 = new double[lengthOfDataset];
+        double[] z_velocities_s2 = new double[lengthOfDataset];
+        
         double[] x_displacements_s1 = new double[lengthOfDataset];
         double[] x_displacements_s2 = new double[lengthOfDataset];
-        double[] timeOfAcceleration = new double[lengthOfDataset];
+        double[] y_displacements_s1 = new double[lengthOfDataset];
+        double[] y_displacements_s2 = new double[lengthOfDataset];
+        double[] z_displacements_s1 = new double[lengthOfDataset];
+        double[] z_displacements_s2 = new double[lengthOfDataset];
         
         int deltaT = (int) 1000 / samplingRate; // sleeping time acc. to sampling frequency
         
+        int dummy = in.readInt();
+        
         double x_current_velocity_s1 = 0;
-        double x_current_velocity_s2 = 0;        
+        double x_current_velocity_s2 = 0;
+        double y_current_velocity_s1 = 0;
+        double y_current_velocity_s2 = 0;
+        double z_current_velocity_s1 = 0;
+        double z_current_velocity_s2 = 0;
+        
         double x_current_disp_s1 = 0;
         double x_current_disp_s2 = 0;
+        double y_current_disp_s1 = 0;
+        double y_current_disp_s2 = 0;
+        double z_current_disp_s1 = 0;
+        double z_current_disp_s2 = 0;
+        
         for (int i = 0; i < lengthOfDataset; i++) 
         {
         	adxl345.readRawAcceleration(raw);
-       		adxl345_1d.readRawAcceleration(raw_1d);
-       		double x_acc_s1=(double) raw[0]*scalingFactor;
-       		double x_acc_s2=(double) raw_1d[0]*scalingFactor;       		
-            x_accelerations_s1[i] = x_acc_s1;
-            x_accelerations_s2[i] = x_acc_s2;
-            x_current_velocity_s1+=x_acc_s1*deltaT;
-            x_current_velocity_s2+=x_acc_s2*deltaT;  
-            x_current_disp_s1+=x_current_velocity_s1*deltaT;
-            x_current_disp_s2+=x_current_velocity_s2*deltaT;
-            x_displacements_s1[i] = x_current_disp_s1;
-            x_displacements_s2[i] = x_current_disp_s2;            
+       		adxl345_1d.readRawAcceleration(raw_1d);    		
+       		
+       		double g=9.80665;
+       		
+            x_accelerations_s1[i] = (double) raw[0]*scalingFactor*g;
+            x_accelerations_s2[i] = (double) raw_1d[0]*scalingFactor*g;
+            y_accelerations_s1[i] = (double) raw[1]*scalingFactor*g;
+            y_accelerations_s2[i] = (double) raw_1d[1]*scalingFactor*g;
+            z_accelerations_s1[i] = (double) (raw[2]+1)*scalingFactor*g;
+            z_accelerations_s2[i] = (double) (raw_1d[2]+1)*scalingFactor*g;
+            
             Thread.sleep(deltaT);    
-		}
+		}        
         
-        // Calculating the frequency spectrum of the stored data, processing the peak picking analysis
-        FrequencySpectrum 	fSpec = new FrequencySpectrum(x_accelerations_s1, deltaT);      
-        PeakPicking 		pp 	  = new PeakPicking(numberOfPeaks, fSpec);
-        int [] 				detectedPeaks = pp.getPeaks();
+        for (int i = 1; i<lengthOfDataset; i++) {
+        	
+        	x_current_velocity_s1+=(x_accelerations_s1[i]+x_accelerations_s1[i-1])*deltaT/2;
+        	x_current_velocity_s2+=(x_accelerations_s2[i]+x_accelerations_s2[i-1])*deltaT/2;
+        	y_current_velocity_s1+=(y_accelerations_s1[i]+y_accelerations_s1[i-1])*deltaT/2;
+        	y_current_velocity_s2+=(y_accelerations_s2[i]+y_accelerations_s2[i-1])*deltaT/2;
+        	z_current_velocity_s1+=(z_accelerations_s1[i]+z_accelerations_s1[i-1])*deltaT/2;
+        	z_current_velocity_s2+=(z_accelerations_s2[i]+z_accelerations_s2[i-1])*deltaT/2;
+        	
+        	x_velocities_s1[i]=x_current_velocity_s1;
+        	x_velocities_s2[i]=x_current_velocity_s2;
+        	y_velocities_s1[i]=y_current_velocity_s1;
+        	y_velocities_s2[i]=y_current_velocity_s2;
+        	z_velocities_s1[i]=z_current_velocity_s1;
+        	z_velocities_s2[i]=z_current_velocity_s2;
+        }
         
-        FrequencySpectrum 	fSpec2 = new FrequencySpectrum(x_accelerations_s2, deltaT);      
-        PeakPicking 		pp2 	  = new PeakPicking(numberOfPeaks, fSpec);
-        int [] 				detectedPeaks2 = pp.getPeaks();
+        for (int i = 1; i<lengthOfDataset; i++) {
+        	
+        	x_current_disp_s1+=(x_velocities_s1[i]+x_velocities_s1[i-1])*deltaT/2;
+        	x_current_disp_s2+=(x_velocities_s2[i]+x_velocities_s2[i-1])*deltaT/2;
+        	y_current_disp_s1+=(y_velocities_s1[i]+y_velocities_s1[i-1])*deltaT/2;
+        	y_current_disp_s2+=(y_velocities_s2[i]+y_velocities_s2[i-1])*deltaT/2;
+        	z_current_disp_s1+=(z_velocities_s1[i]+z_velocities_s1[i-1])*deltaT/2;
+        	z_current_disp_s2+=(z_velocities_s2[i]+z_velocities_s2[i-1])*deltaT/2;
+        	
+        	x_displacements_s1[i]=x_current_disp_s1;
+        	x_displacements_s2[i]=x_current_disp_s2;
+        	y_displacements_s1[i]=y_current_disp_s1;
+        	y_displacements_s2[i]=y_current_disp_s2;
+        	z_displacements_s1[i]=z_current_disp_s1;
+        	z_displacements_s2[i]=z_current_disp_s2;
+        }
+        
+        
+        
 
         // transmitting acceleration-data to the server
-    	for (int i = 0; i < lengthOfDataset; i++) {
-    		out.writeDouble(x_accelerations_s1[i]);	
-    		out.writeDouble(x_accelerations_s2[i]);
-		}
-    	
-    	// transmitting displacement-data to the server
-    	for (int i = 0; i < lengthOfDataset; i++) {
-    		out.writeDouble(x_displacements_s1[i]);	
-    		out.writeDouble(x_displacements_s2[i]);
-		}
-    	
-    	//transmitting the detected peaks to the server
-    	for (int i = 0; i < detectedPeaks.length; i++) {
-    		out.writeDouble(detectedPeaks[i]);
-    		out.writeDouble(detectedPeaks2[i]);
-    	}
+        if (property == 1) {
+        	for (int i = 0; i < lengthOfDataset; i++) {
+        		out.writeDouble(x_accelerations_s1[i]);	
+        		out.writeDouble(x_accelerations_s2[i]);
+        		out.writeDouble(y_accelerations_s1[i]);	
+        		out.writeDouble(y_accelerations_s2[i]);
+        		out.writeDouble(z_accelerations_s1[i]);	
+        		out.writeDouble(z_accelerations_s2[i]);        		
+    		}
+        }
+        else if (property == 2) {
+        	for (int i = 0; i < lengthOfDataset; i++) {
+        		out.writeDouble(x_displacements_s1[i]);	
+        		out.writeDouble(x_displacements_s2[i]);
+        		out.writeDouble(y_displacements_s1[i]);	
+        		out.writeDouble(y_displacements_s2[i]);
+        		out.writeDouble(z_displacements_s1[i]);	
+        		out.writeDouble(z_displacements_s2[i]);
+    		}
+        }
+        else if (property == 3) {        	
+        	double x_min_s1 = Double.MAX_VALUE;
+        	double x_max_s1 = -Double.MAX_VALUE;
+        	double y_min_s1 = Double.MAX_VALUE;
+        	double y_max_s1 = -Double.MAX_VALUE;
+        	double z_min_s1 = Double.MAX_VALUE;
+        	double z_max_s1 = -Double.MAX_VALUE;
+        	
+        	for(int i=0; i<lengthOfDataset; i++) { 
+        		if (x_displacements_s1[i]<x_min_s1) {x_min_s1=x_displacements_s1[i];}
+        		if (x_displacements_s1[i]>x_max_s1) {x_max_s1=x_displacements_s1[i];}
+        		if (y_displacements_s1[i]<y_min_s1) {y_min_s1=y_displacements_s1[i];}
+        		if (y_displacements_s1[i]>y_max_s1) {y_max_s1=y_displacements_s1[i];}
+        		if (z_displacements_s1[i]<z_min_s1) {z_min_s1=x_displacements_s1[i];}
+        		if (z_displacements_s1[i]>z_max_s1) {z_max_s1=x_displacements_s1[i];}        		
+        	}
+        	
+        	out.writeDouble(x_min_s1);
+    		out.writeDouble(x_max_s1);
+    		out.writeDouble(y_min_s1);
+    		out.writeDouble(y_max_s1);
+    		out.writeDouble(z_min_s1);
+    		out.writeDouble(z_max_s1);
+        }
+        
+        else if (property == 4) { 
+        	
+            FrequencySpectrum 	x_fSpec = new FrequencySpectrum(x_accelerations_s1, deltaT);      
+            PeakPicking 		x_pp 	  = new PeakPicking(numberOfPeaks, x_fSpec);
+            int [] 				x_detectedPeaks = x_pp.getPeaks();
+            
+            FrequencySpectrum 	x_fSpec2 = new FrequencySpectrum(x_accelerations_s2, deltaT);      
+            PeakPicking 		x_pp2 	  = new PeakPicking(numberOfPeaks, x_fSpec2);
+            int [] 				x_detectedPeaks2 = x_pp2.getPeaks();
+            
+            FrequencySpectrum 	y_fSpec = new FrequencySpectrum(y_accelerations_s1, deltaT);      
+            PeakPicking 		y_pp 	  = new PeakPicking(numberOfPeaks, y_fSpec);
+            int [] 				y_detectedPeaks = y_pp.getPeaks();
+            
+            FrequencySpectrum 	y_fSpec2 = new FrequencySpectrum(y_accelerations_s2, deltaT);      
+            PeakPicking 		y_pp2 	  = new PeakPicking(numberOfPeaks, y_fSpec2);
+            int [] 				y_detectedPeaks2 = y_pp2.getPeaks();
+            
+            FrequencySpectrum 	z_fSpec = new FrequencySpectrum(z_accelerations_s1, deltaT);      
+            PeakPicking 		z_pp 	  = new PeakPicking(numberOfPeaks, z_fSpec);
+            int [] 				z_detectedPeaks = z_pp.getPeaks();
+            
+            FrequencySpectrum 	z_fSpec2 = new FrequencySpectrum(z_accelerations_s2, deltaT);      
+            PeakPicking 		z_pp2 	  = new PeakPicking(numberOfPeaks, z_fSpec2);
+            int [] 				z_detectedPeaks2 = z_pp2.getPeaks();           
+            
+            for (int i = 0; i < x_detectedPeaks.length; i++) {
+        		out.writeDouble(x_detectedPeaks[i]);
+        		out.writeDouble(x_detectedPeaks2[i]);
+        		out.writeDouble(y_detectedPeaks[i]);
+        		out.writeDouble(y_detectedPeaks2[i]);
+        		out.writeDouble(z_detectedPeaks[i]);
+        		out.writeDouble(z_detectedPeaks2[i]);
+        	}
+        }  	
     	
     	s.close();
     	out.close();
