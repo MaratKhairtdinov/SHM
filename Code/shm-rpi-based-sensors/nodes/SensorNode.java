@@ -17,7 +17,7 @@ public class SensorNode {
 	static int 		lengthOfDataset; 	// [n]
 	static int 		numberOfPeaks;		// [n]
 	static double 	acceleration[];		// [x-acceleration, y-acceleration, z-acceleration][in g]
-	static int property;
+	static int 		property;
 	
 	public static String serverIP = "192.168.137.148";
 	
@@ -25,6 +25,9 @@ public class SensorNode {
     	/*
     	 * Initiating communication to the server:
     	 */
+    	
+    	double name = 1234;
+    	
     	Socket s = new Socket(serverIP,1234);
         DataOutputStream out = new DataOutputStream(s.getOutputStream());
         DataInputStream in = new DataInputStream(s.getInputStream());        
@@ -48,7 +51,7 @@ public class SensorNode {
         adxl345_1d.writeFullResolution(true);
         adxl345_1d.writeRate(ADXL345.ADXL345_RATE_100);
         
-        float scalingFactor = adxl345.getScalingFactor();
+        float scalingFactor = adxl345.getScalingFactor()/1000;
         
         short[] raw = new short[3]; //it is necessary to have a vector with 3 values
         short[] raw_1d = new short[3];
@@ -73,9 +76,11 @@ public class SensorNode {
         double[] z_displacements_s1 = new double[lengthOfDataset];
         double[] z_displacements_s2 = new double[lengthOfDataset];
         
+        double[] time_data = new double[lengthOfDataset];
+        
         int deltaT = (int) 1000 / samplingRate; // sleeping time acc. to sampling frequency
         
-        int dummy = in.readInt();
+        int dummy = in.readInt();	//start recording from this point              
         
         double x_current_velocity_s1 = 0;
         double x_current_velocity_s2 = 0;
@@ -94,28 +99,57 @@ public class SensorNode {
         for (int i = 0; i < lengthOfDataset; i++) 
         {
         	adxl345.readRawAcceleration(raw);
-       		adxl345_1d.readRawAcceleration(raw_1d);    		
+       		adxl345_1d.readRawAcceleration(raw_1d); 
        		
-       		double g=9.80665;
+       		double g = (double) 9.80665f;
        		
             x_accelerations_s1[i] = (double) raw[0]*scalingFactor*g;
             x_accelerations_s2[i] = (double) raw_1d[0]*scalingFactor*g;
             y_accelerations_s1[i] = (double) raw[1]*scalingFactor*g;
             y_accelerations_s2[i] = (double) raw_1d[1]*scalingFactor*g;
-            z_accelerations_s1[i] = (double) (raw[2]+1)*scalingFactor*g;
-            z_accelerations_s2[i] = (double) (raw_1d[2]+1)*scalingFactor*g;
+            z_accelerations_s1[i] = (double) (raw[2])*scalingFactor*g;
+            z_accelerations_s2[i] = (double) (raw_1d[2])*scalingFactor*g;
+            
+            time_data[i] = System.currentTimeMillis();
             
             Thread.sleep(deltaT);    
 		}        
+        /*for (int i=0;i<lengthOfDataset;i++) {
+        	double g=(double)9.80665f;
+        	
+        	x_accelerations_s1[i]*=g;
+            x_accelerations_s2[i]*=g;
+            y_accelerations_s1[i]*=g;
+            y_accelerations_s2[i]*=g;
+            z_accelerations_s1[i]*=g;
+            z_accelerations_s2[i]*=g;
+        }*/
+        
+        double deltaTime = (double) 1 / samplingRate;
+       
+        x_velocities_s1[0]=0;
+        x_velocities_s2[0]=0;
+        y_velocities_s1[0]=0;
+        y_velocities_s2[0]=0;
+        z_velocities_s1[0]=0;
+        z_velocities_s2[0]=0;
+        
+        x_displacements_s1[0]=0;
+        x_displacements_s2[0]=0;
+        y_displacements_s1[0]=0;
+        y_displacements_s2[0]=0;
+        z_displacements_s1[0]=0;
+        z_displacements_s2[0]=0;
+        
         
         for (int i = 1; i<lengthOfDataset; i++) {
         	
-        	x_current_velocity_s1+=(x_accelerations_s1[i]+x_accelerations_s1[i-1])*deltaT/2;
-        	x_current_velocity_s2+=(x_accelerations_s2[i]+x_accelerations_s2[i-1])*deltaT/2;
-        	y_current_velocity_s1+=(y_accelerations_s1[i]+y_accelerations_s1[i-1])*deltaT/2;
-        	y_current_velocity_s2+=(y_accelerations_s2[i]+y_accelerations_s2[i-1])*deltaT/2;
-        	z_current_velocity_s1+=(z_accelerations_s1[i]+z_accelerations_s1[i-1])*deltaT/2;
-        	z_current_velocity_s2+=(z_accelerations_s2[i]+z_accelerations_s2[i-1])*deltaT/2;
+        	x_current_velocity_s1+=(double)(x_accelerations_s1[i]+x_accelerations_s1[i-1])*deltaTime/2;
+        	x_current_velocity_s2+=(double)(x_accelerations_s2[i]+x_accelerations_s2[i-1])*deltaTime/2;
+        	y_current_velocity_s1+=(double)(y_accelerations_s1[i]+y_accelerations_s1[i-1])*deltaTime/2;
+        	y_current_velocity_s2+=(double)(y_accelerations_s2[i]+y_accelerations_s2[i-1])*deltaTime/2;
+        	z_current_velocity_s1+=(double)(z_accelerations_s1[i]+z_accelerations_s1[i-1])*deltaTime/2;
+        	z_current_velocity_s2+=(double)(z_accelerations_s2[i]+z_accelerations_s2[i-1])*deltaTime/2;
         	
         	x_velocities_s1[i]=x_current_velocity_s1;
         	x_velocities_s2[i]=x_current_velocity_s2;
@@ -127,12 +161,12 @@ public class SensorNode {
         
         for (int i = 1; i<lengthOfDataset; i++) {
         	
-        	x_current_disp_s1+=(x_velocities_s1[i]+x_velocities_s1[i-1])*deltaT/2;
-        	x_current_disp_s2+=(x_velocities_s2[i]+x_velocities_s2[i-1])*deltaT/2;
-        	y_current_disp_s1+=(y_velocities_s1[i]+y_velocities_s1[i-1])*deltaT/2;
-        	y_current_disp_s2+=(y_velocities_s2[i]+y_velocities_s2[i-1])*deltaT/2;
-        	z_current_disp_s1+=(z_velocities_s1[i]+z_velocities_s1[i-1])*deltaT/2;
-        	z_current_disp_s2+=(z_velocities_s2[i]+z_velocities_s2[i-1])*deltaT/2;
+        	x_current_disp_s1+=(double)(x_velocities_s1[i]+x_velocities_s1[i-1])*deltaTime/2;
+        	x_current_disp_s2+=(double)(x_velocities_s2[i]+x_velocities_s2[i-1])*deltaTime/2;
+        	y_current_disp_s1+=(double)(y_velocities_s1[i]+y_velocities_s1[i-1])*deltaTime/2;
+        	y_current_disp_s2+=(double)(y_velocities_s2[i]+y_velocities_s2[i-1])*deltaTime/2;
+        	z_current_disp_s1+=(double)(z_velocities_s1[i]+z_velocities_s1[i-1])*deltaTime/2;
+        	z_current_disp_s2+=(double)(z_velocities_s2[i]+z_velocities_s2[i-1])*deltaTime/2;
         	
         	x_displacements_s1[i]=x_current_disp_s1;
         	x_displacements_s2[i]=x_current_disp_s2;
@@ -140,10 +174,7 @@ public class SensorNode {
         	y_displacements_s2[i]=y_current_disp_s2;
         	z_displacements_s1[i]=z_current_disp_s1;
         	z_displacements_s2[i]=z_current_disp_s2;
-        }
-        
-        
-        
+        }  
 
         // transmitting acceleration-data to the server
         if (property == 1) {
@@ -153,8 +184,11 @@ public class SensorNode {
         		out.writeDouble(y_accelerations_s1[i]);	
         		out.writeDouble(y_accelerations_s2[i]);
         		out.writeDouble(z_accelerations_s1[i]);	
-        		out.writeDouble(z_accelerations_s2[i]);        		
+        		out.writeDouble(z_accelerations_s2[i]);   
+        		//out.writeDouble(time_data[i]);
+        		//Thread.sleep(deltaT);
     		}
+        	out.writeDouble(deltaTime);
         }
         else if (property == 2) {
         	for (int i = 0; i < lengthOfDataset; i++) {
@@ -164,6 +198,7 @@ public class SensorNode {
         		out.writeDouble(y_displacements_s2[i]);
         		out.writeDouble(z_displacements_s1[i]);	
         		out.writeDouble(z_displacements_s2[i]);
+        		//Thread.sleep(deltaT);
     		}
         }
         else if (property == 3) {        	
@@ -189,6 +224,7 @@ public class SensorNode {
     		out.writeDouble(y_max_s1);
     		out.writeDouble(z_min_s1);
     		out.writeDouble(z_max_s1);
+    		//Thread.sleep(deltaT);
         }
         
         else if (property == 4) { 

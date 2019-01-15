@@ -19,11 +19,12 @@ public class Server {
 		Scanner scan = new Scanner(System.in);
 
 		// ===== Input Parameters ======= //
-		int lengthOfDataset = 2048;        
-		int samplingFrequency = 256; // Hz
+		int lengthOfDataset = 2500;        
+		int samplingFrequency = 250; // Hz
 		int numberOfNodes = 1;
 		int numberOfPeaks = 3;
-		int property = 1;// 1:= get acceleration from the node, 2:= get raw displacements, 3:= get max/min displacements  
+		int property = 2;// 1:= get acceleration from the node, 2:= get raw displacements, 3:= get max/min displacements  
+		
 		// ============================== //
 		
 		double[][] x_rawAccelerationData = new double[numberOfNodes][lengthOfDataset];
@@ -69,6 +70,7 @@ public class Server {
         DataInputStream 	IN[] 	= new DataInputStream[numberOfNodes];
         
         for(int node = 0; node < numberOfNodes; node++){
+        	
         	int numberConn = 1234+node;
         	System.out.println("Connecting node " + numberConn );
         	ss[node] = new ServerSocket(numberConn);
@@ -89,22 +91,30 @@ public class Server {
         
         System.out.println("setup parameters transmitted\n"
         		+ "-------------------- \n \n"
-        		+ "Server is ready to recieve data :) !\n"
-        		+ "To start process, press Enter");
+        		+ "Server is ready to recieve data :) !\n\n"
+        		+ "To start process, press Enter\n");
         
 ///!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         
         String dummy = scan.nextLine();
         
-        System.out.println("Waiting for the data...");
+        //System.out.println("Waiting for the data...");
         
         FileWriter writer = new FileWriter(rawDataPath);
+        
+        // Send the command to the node 
+        
+        for (int node = 0; node<numberOfNodes; node++) {
+        	OUT[node].writeInt(1);        	
+    		OUT[node].flush();
+    		//double response = IN[node].readDouble();
+    		System.out.println("Node "+node+" on the run...\n");
+        }
         
         for(int node = 0; node < numberOfNodes; node++){
         	       	        	
         	if (property == 1) {
-        		OUT[node].writeInt(1);
-        		OUT[node].flush();
+        		
         		writer.write("Node: "+(node+1)+"\nSensor 1 , , , Sensor2 \nx,y,z,x,y,z\n");
             	for (int i = 0; i < lengthOfDataset; i++) {
             		x_rawAccelerationData[node][i]=IN[node].readDouble();
@@ -114,10 +124,11 @@ public class Server {
             		z_rawAccelerationData[node][i]=IN[node].readDouble();
             		z_rawAccelerationData2[node][i]=IN[node].readDouble();            		
             		
-            		writer.write(x_rawAccelerationData[node][i] + ", "+y_rawAccelerationData[node][i]+", "+z_rawAccelerationData[node][i]+", "
+            		writer.write(x_rawAccelerationData[node][i] +", "+y_rawAccelerationData[node][i]+", "+z_rawAccelerationData[node][i]+", "
             					+x_rawAccelerationData2[node][i]+", "+y_rawAccelerationData2[node][i]+", "+z_rawAccelerationData2[node][i]+"\n");            		
         		}
-            	System.out.println("Raw accleration data is written in"+rawDataPath);
+            	double deltaT=IN[node].readDouble();
+            	System.out.println("Raw accleration data is written in"+rawDataPath+"\n"+deltaT);
             }
             else if(property == 2) {
             		writer.write("Node: "+(node+1)+"\nSensor 1 , , , Sensor2 \nx,y,z,x,y,z\n");
